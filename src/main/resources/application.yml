@@ -1,0 +1,52 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: aspora-tms
+  datasource:
+    # WAL = concurrent readers + 1 writer; busy_timeout avoids instant SQLITE_BUSY errors
+    url: jdbc:sqlite:tms.db?journal_mode=WAL&busy_timeout=5000
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite allows a single writer. One pooled connection serialises writes at the pool
+      # instead of failing with SQLITE_BUSY. Swap to Postgres + bigger pool for scale.
+      maximum-pool-size: 1
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+
+tms:
+  system-wallets:
+    currencies: [INR, USD]
+  queue:
+    capacity: 10000
+    workers-per-topic: 4
+    max-attempts: 3
+    retry-backoff-ms: 200
+  outbox:
+    poll-interval-ms: 200
+    batch-size: 100
+  processing:
+    max-lock-retries: 3
+    lock-retry-backoff-ms: 25
+  # Validation chain is configured here, not in code. Amounts are in minor units (paise/cents).
+  # `defaults` apply to every transaction type; `overrides.<TYPE>` can disable rules or change params.
+  validation:
+    defaults:
+      wallet-active: { enabled: true }
+      distinct-wallets: { enabled: true }
+      currency-match: { enabled: true }
+      amount-limit:
+        params: { min: 100, max: 10000000 }
+      sufficient-balance: { enabled: true }
+    overrides:
+      DEPOSIT:
+        amount-limit:
+          params: { max: 20000000 }
+        sufficient-balance: { enabled: false }   # source is the bank settlement system wallet
+      WITHDRAWAL:
+        amount-limit:
+          params: { min: 1000, max: 5000000 }
