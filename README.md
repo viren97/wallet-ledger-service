@@ -4,7 +4,7 @@ A wallet-based transaction management service: transfers, cash deposits/withdraw
 payments with configurable validation, a state-machine lifecycle, a double-entry ledger, the
 transactional outbox and async processing/fan-out over an in-memory queue.
 
-**Stack:** Kotlin 2.2 · Spring Boot 3.5 · Spring Data JPA / Hibernate 6 · SQLite · Gradle 9 · Java 17
+**Stack:** Kotlin 2.0 · Spring Boot 3.5 · Spring Data JPA / Hibernate 6 · SQLite · Gradle 8.5 · Java 17
 
 ## Run
 
