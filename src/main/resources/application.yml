@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: aspora-tms
+    name: wallet-ledger-service
   datasource:
     # WAL = concurrent readers + 1 writer; busy_timeout avoids instant SQLITE_BUSY errors
     url: jdbc:sqlite:tms.db?journal_mode=WAL&busy_timeout=5000
@@ -12,16 +12,34 @@ spring:
       # SQLite allows a single writer. One pooled connection serialises writes at the pool
       # instead of failing with SQLITE_BUSY. Swap to Postgres + bigger pool for scale.
       maximum-pool-size: 1
+  data:
+    redis:
+      repositories:
+        enabled: false        # Redis is only a cache here; all repositories are JPA
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     open-in-view: false
     hibernate:
       ddl-auto: update
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true         # /actuator/health/liveness and /readiness for Docker / Kubernetes
+  health:
+    redis:
+      enabled: false          # turned on in the docker profile, where Redis exists
+
 tms:
   system-wallets:
     currencies: [INR, USD]
   queue:
+    type: in-memory           # in-memory | kafka (docker profile)
     capacity: 10000
     workers-per-topic: 4
     max-attempts: 3
@@ -32,6 +50,14 @@ tms:
   processing:
     max-lock-retries: 3
     lock-retry-backoff-ms: 25
+    max-attempts: 5           # claims before a transiently failing transaction is failed for good
+  sweeper:
+    interval-ms: 30000
+    stale-after-ms: 60000     # PENDING/PROCESSING untouched this long is requeued
+  cache:
+    status:
+      enabled: false          # Redis cache for terminal transaction status (docker profile)
+      ttl-seconds: 86400
   # Validation chain is configured here, not in code. Amounts are in minor units (paise/cents).
   # `defaults` apply to every transaction type; `overrides.<TYPE>` can disable rules or change params.
   validation:

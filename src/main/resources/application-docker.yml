@@ -1,0 +1,40 @@
+# Profile for docker-compose / Kubernetes: Postgres + Kafka + Redis.
+# Every value can be overridden with an environment variable; secrets have no defaults on purpose,
+# so a missing secret fails at startup instead of silently using a dev value.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/tms}
+    username: ${DB_USERNAME:tms}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      connection-timeout: 3000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      auto-offset-reset: earliest
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 500ms
+
+management:
+  health:
+    redis:
+      enabled: true
+
+tms:
+  queue:
+    type: kafka
+  cache:
+    status:
+      enabled: true

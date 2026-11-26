@@ -1,1 +1,1 @@
-rootProject.name = "aspora-tms"
+rootProject.name = "wallet-ledger-service"

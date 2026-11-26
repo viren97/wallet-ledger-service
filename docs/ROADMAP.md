@@ -27,7 +27,7 @@ it is named.
 ## 3. Withdrawal lifecycle with holds
 - [ ] New states `AWAITING_BANK` and `REVERSED` (one `TransactionState` object each).
 - [ ] `heldBalance` bucket: debit withdrawable into hold → bank payout → settle on success, or release on failure.
-- [ ] Sweeper for transactions stuck in `PROCESSING` / `AWAITING_BANK` (crash between claim and execute).
+- [x] Sweeper for transactions stuck in `PENDING` / `PROCESSING` (`StuckTransactionSweeper`). Extend it to `AWAITING_BANK` with payouts.
 
 ## 4. Upstream fan-out (port: `event/EventSubscriber`)
 - [ ] `POST /subscriptions {url, eventTypes, secret}` registry for upstream services.
@@ -43,8 +43,10 @@ it is named.
 - [ ] Multi-currency FX transfers.
 
 ## 7. Scale and operations
-- [ ] Postgres: larger pool, `SELECT … FOR UPDATE` or optimistic-only, and `FOR UPDATE SKIP LOCKED` for multi-instance outbox relays.
-- [ ] Kafka/SQS `TaskQueue` adapter, partitioned by source wallet id for per-wallet ordering.
+- [x] Postgres profile (`docker`) with a pool of 20.
+- [ ] `FOR UPDATE SKIP LOCKED` so several instances can run the outbox relay without double-publishing (today duplicates are possible and absorbed by idempotent consumers).
+- [x] Kafka `TaskQueue` adapter (keyed by transaction id, retries + dead-letter topic).
+- [ ] Key by source wallet id instead, for per-wallet ordering.
 - [ ] Hot system wallets (every deposit touches `BANK_SETTLEMENT`): shard into sub-wallets or post asynchronously to avoid lock contention.
 - [ ] Outbox and ledger housekeeping: archive published events, balance snapshots so reconciliation doesn't scan the full ledger.
 - [ ] Flyway migrations instead of `ddl-auto`.
@@ -53,7 +55,11 @@ it is named.
 - [ ] OpenAPI/Swagger UI (springdoc).
 - [ ] Pagination on ledger and transaction listing.
 
-## 8. Tests
+## 8. Deployment
+- [x] Dockerfile, docker-compose (Postgres, Kafka, Redis), Helm chart with External Secrets.
+- [ ] CI pipeline: test, build and push the image, `helm lint`.
+
+## 9. Tests
 - [ ] Controller slice tests for error mapping (`@WebMvcTest`).
 - [ ] Webhook replay and concurrent duplicate submission (same key from two threads).
 - [ ] Bank adapter contract tests once the gateway is implemented.
