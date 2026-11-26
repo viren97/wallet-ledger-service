@@ -10,9 +10,33 @@ with one `docker compose` command.
 **Stack:** Kotlin 2.0 · Spring Boot 3.5 · Spring Data JPA · Postgres (SQLite for local dev) · Kafka · Redis ·
 Docker Compose · Helm · Java 17
 
+## Engineering highlights
+
+> **For reviewers:** each row points to the code and the test that proves it. The reasoning behind the main
+> decisions is in the [architecture decision records](docs/adr/).
+
+| Skill | What I built | Proof |
+|---|---|---|
+| **Financial correctness** | Double-entry ledger written in the same DB transaction as every balance change; money in `Long` minor units; a reconciliation endpoint re-derives balances from the ledger | [`LedgerService`](src/main/kotlin/dev/viren/tms/ledger/LedgerService.kt) · [`TransactionExecutor`](src/main/kotlin/dev/viren/tms/transaction/service/TransactionExecutor.kt) · [ADR-001](docs/adr/001-double-entry-ledger.md) |
+| **Concurrency control** | Striped wallet locks taken in sorted order (no deadlocks) plus `@Version` optimistic locking across instances; 200 concurrent opposite transfers keep balances exact and the ledger at zero | [`WalletLockManager`](src/main/kotlin/dev/viren/tms/wallet/WalletLockManager.kt) · test `concurrent opposite transfers keep balances and ledger consistent` · [ADR-003](docs/adr/003-striped-locks-and-optimistic-locking.md) |
+| **Distributed-systems reliability** | Transactional outbox: the state change and the next step commit atomically; the relay marks a row published only after the broker acks; consumers are idempotent | [`OutboxService`](src/main/kotlin/dev/viren/tms/outbox/OutboxService.kt) · [`OutboxRelay`](src/main/kotlin/dev/viren/tms/outbox/OutboxRelay.kt) · [ADR-002](docs/adr/002-async-processing-with-outbox.md) |
+| **Idempotent APIs** | `Idempotency-Key` with request fingerprinting (replay → 200, misuse → 422) that survives a concurrent duplicate at commit; bank webhooks are idempotent on the bank reference | [`TransactionService`](src/main/kotlin/dev/viren/tms/transaction/service/TransactionService.kt) · [`BankWebhookController`](src/main/kotlin/dev/viren/tms/transaction/api/BankWebhookController.kt) · test `same idempotency key replays, different payload is rejected` |
+| **Crash recovery** | Sweeper re-queues stranded transactions; a slow worker and the requeue can't both commit; poison transactions fail after N attempts | [`StuckTransactionSweeper`](src/main/kotlin/dev/viren/tms/transaction/recovery/StuckTransactionSweeper.kt) · test `sweeper recovers a transaction stranded in PROCESSING and applies it exactly once` |
+| **Domain modelling** | Sealed-class state machine (illegal transitions throw); wallet invariants inside the entity (user wallets can't go negative, system wallets can) | [`TransactionState`](src/main/kotlin/dev/viren/tms/transaction/state/TransactionState.kt) · [`Wallet`](src/main/kotlin/dev/viren/tms/wallet/Wallet.kt) · [`TransactionStateTest`](src/test/kotlin/dev/viren/tms/transaction/TransactionStateTest.kt) · [`WalletTest`](src/test/kotlin/dev/viren/tms/wallet/WalletTest.kt) |
+| **Extensible design** | A transaction type is one strategy bean declaring its parties and which balance bucket pays (promo-first vs withdrawable-only) | [`Handlers`](src/main/kotlin/dev/viren/tms/transaction/handler/Handlers.kt) · [`BalanceAllocationStrategy`](src/main/kotlin/dev/viren/tms/transaction/handler/BalanceAllocationStrategy.kt) · [`BalanceAllocationTest`](src/test/kotlin/dev/viren/tms/transaction/BalanceAllocationTest.kt) |
+| **Config-driven business rules** | The validation chain is defined in YAML: rules per transaction type with merged params, cheap rules first, and a bad config fails at startup | [`TransactionValidator`](src/main/kotlin/dev/viren/tms/transaction/validation/TransactionValidator.kt) · [`Rules`](src/main/kotlin/dev/viren/tms/transaction/validation/rules/Rules.kt) · [`TransactionValidatorTest`](src/test/kotlin/dev/viren/tms/transaction/TransactionValidatorTest.kt) · [ADR-004](docs/adr/004-config-driven-validation-chain.md) |
+| **Read scalability** | The Redis cache holds only terminal statuses: nothing to invalidate, no stale reads, fails open | [`TransactionStatusCache`](src/main/kotlin/dev/viren/tms/transaction/api/TransactionStatusCache.kt) · [ADR-005](docs/adr/005-cache-only-terminal-statuses.md) |
+| **Clean architecture** | Ports and adapters: in-memory ↔ Kafka queue, no-op ↔ Redis cache, bank gateway port, all swapped by config | [`TaskQueue`](src/main/kotlin/dev/viren/tms/queue/TaskQueue.kt) · [`KafkaTaskQueue`](src/main/kotlin/dev/viren/tms/queue/KafkaTaskQueue.kt) · [`BankGateway`](src/main/kotlin/dev/viren/tms/integration/bank/BankGateway.kt) |
+| **Delivery & operations** | Multi-stage non-root Docker image, compose stack (Postgres, Kafka KRaft, Redis), Helm chart (HPA, probes, External Secrets), fail-fast secrets, CI | [`Dockerfile`](Dockerfile) · [`deploy/helm/tms`](deploy/helm/tms) · [CI](.github/workflows/ci.yml) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
+
+**At a glance:** 49 production classes · 23 tests (18 unit, 5 end-to-end, including a 200-thread concurrency test) ·
+runs with zero setup or as a full stack with `docker compose up`.
+
+---
+
 | | |
 |---|---|
-| [Run it](#run-it) | [Architecture (HLD)](#architecture-hld) · [Low-level design](#low-level-design-lld) |
+| [Engineering highlights](#engineering-highlights) · [Run it](#run-it) | [Architecture (HLD)](#architecture-hld) · [Low-level design](#low-level-design-lld) |
 | [Request flow](#request-flow) | [State machine](#transaction-state-machine) · [Failure handling](#failure-handling) |
 | [Design choices & trade-offs](#design-choices-and-trade-offs) | [API](docs/API.md) · [Partner integration](docs/PARTNER_INTEGRATION.md) · [Deployment, config & secrets](docs/DEPLOYMENT.md) · [Roadmap](docs/ROADMAP.md) |
 
