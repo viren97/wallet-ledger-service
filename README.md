@@ -38,7 +38,7 @@ runs with zero setup or as a full stack with `docker compose up`.
 |---|---|
 | [Engineering highlights](#engineering-highlights) · [Run it](#run-it) | [Architecture (HLD)](#architecture-hld) · [Low-level design](#low-level-design-lld) |
 | [Request flow](#request-flow) | [State machine](#transaction-state-machine) · [Failure handling](#failure-handling) |
-| [Design choices & trade-offs](#design-choices-and-trade-offs) | [API](docs/API.md) · [Partner integration](docs/PARTNER_INTEGRATION.md) · [Deployment, config & secrets](docs/DEPLOYMENT.md) · [Roadmap](docs/ROADMAP.md) |
+| [Design choices & trade-offs](#design-choices-and-trade-offs) | [API](docs/API.md) · [Partner integration](docs/PARTNER_INTEGRATION.md) · [Deployment, config & secrets](docs/DEPLOYMENT.md) · [Roadmap](docs/ROADMAP.md) · [Decision records](docs/adr/) · [Scaling plan](#scaling-plan) |
 
 ---
 
@@ -317,6 +317,21 @@ Effective rule chains are logged at startup and exposed at `GET /api/v1/admin/va
 - `TransactionFlowIntegrationTest` (full async path): 200 concurrent A↔B transfers keep balances correct and the
   ledger at zero; insufficient balance moves no money; idempotent replay; fan-out; a transaction stranded in
   `PROCESSING` is recovered by the sweeper and applied exactly once.
+
+## Scaling plan
+
+What holds today, what breaks first, and what to change. The order follows the expected bottleneck.
+
+| Load | First bottleneck | Change |
+|---|---|---|
+| **Local / demo** | SQLite's single writer | Use the `docker` profile: Postgres, Kafka, Redis. No code changes |
+| **~100 TPS** | Outbox polling and published rows piling up | Already indexed (`status, created_at`). Add cleanup of published rows; tune `tms.outbox.batch-size` |
+| **~1k TPS** | Hot system wallets (`BANK_SETTLEMENT` is touched by every deposit) serialise behind one lock and one row version | Shard system wallets into N sub-wallets picked by hash, or post their side asynchronously ([ADR-003](docs/adr/003-striped-locks-and-optimistic-locking.md)) |
+| **~10k TPS** | Write volume (4+ rows per movement) on one Postgres primary | Partition `ledger_entries` by month; shard wallets by user id; more Kafka partitions (already keyed by transaction id) |
+| **Multi-region** | Latency and data residency | Regional deployments owning their users' wallets; cross-region transfers as two-phase sagas over the outbox |
+
+Things that already scale horizontally without change: the API (stateless), the processors (claim plus `@Version`),
+the sweeper (safe on many instances) and status reads (terminal statuses served from Redis, [ADR-005](docs/adr/005-cache-only-terminal-statuses.md)).
 
 ## Not built yet
 Partner payout adapter, webhook HMAC verification, Flyway, auth, metrics: see [docs/ROADMAP.md](docs/ROADMAP.md).
