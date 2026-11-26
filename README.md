@@ -347,3 +347,7 @@ the sweeper (safe on many instances) and status reads (terminal statuses served 
 
 ## Not built yet
 Partner payout adapter, webhook HMAC verification, Flyway, auth, metrics: see [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## License
+
+[Apache License 2.0](LICENSE).
