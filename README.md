@@ -73,6 +73,16 @@ Try it: [docs/API.md](docs/API.md) has curl examples for every endpoint.
 
 ## Architecture (HLD)
 
+[![Wallet Ledger Service high-level design](docs/architecture/wallet-ledger-hld.png)](docs/architecture/wallet-ledger-hld.png)
+
+*Click the diagram for full size. The numbered red circles ① – ⑨ follow one `POST /api/v1/transactions` from the
+idempotency check to the final status read, as explained in the strip at the bottom of the diagram. To edit it, open
+[`docs/architecture/wallet-ledger-hld.excalidraw`](docs/architecture/wallet-ledger-hld.excalidraw) in
+[excalidraw.com](https://excalidraw.com) (Menu → Open), then export a new PNG over `wallet-ledger-hld.png`.*
+
+<details>
+<summary>Text version (Mermaid)</summary>
+
 ```mermaid
 flowchart LR
     client([Client app]) -->|POST /transactions<br/>Idempotency-Key| api[REST API]
@@ -95,6 +105,8 @@ flowchart LR
     fanout --> upstream[Upstream subscribers]
     processor -.->|port: BankGateway<br/>payouts, status pull| bank
 ```
+
+</details>
 
 - **Writes are accepted fast, processed async.** `POST` stores the transaction and an outbox row in one
   DB transaction and returns `202`. Money moves later, in a worker.
