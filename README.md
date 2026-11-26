@@ -1,5 +1,7 @@
 # TMS: Wallet Transaction Management Service
 
+[![CI](https://github.com/viren97/wallet-ledger-service/actions/workflows/ci.yml/badge.svg)](https://github.com/viren97/wallet-ledger-service/actions/workflows/ci.yml)
+
 A wallet-based money-movement service: transfers, deposits, withdrawals and vendor payments, processed
 asynchronously with a state-machine lifecycle, a double-entry ledger, the transactional outbox,
 idempotent APIs and recovery from crashes. Runs on SQLite with zero setup, or on Postgres + Kafka + Redis
