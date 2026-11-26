@@ -1,0 +1,11 @@
+.git
+.gradle
+.idea
+.kotlin
+build
+deploy
+docs
+*.db
+*.db-shm
+*.db-wal
+*.tgz

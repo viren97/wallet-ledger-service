@@ -1,0 +1,57 @@
+# Non-secret configuration only. Secrets never go in this file: they come from a secret manager
+# through the External Secrets Operator (see externalSecret below and docs/DEPLOYMENT.md).
+
+image:
+  repository: ghcr.io/viren97/tms
+  tag: ""                      # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { memory: 1Gi }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Plain environment for the docker profile; managed Postgres / Kafka / Redis endpoints per environment.
+config:
+  SPRING_PROFILES_ACTIVE: docker
+  DB_URL: jdbc:postgresql://tms-postgres:5432/tms
+  DB_USERNAME: tms
+  DB_POOL_SIZE: "20"
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  JAVA_OPTS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+
+externalSecret:
+  enabled: true
+  refreshInterval: 1h
+  # A (Cluster)SecretStore pointing at Vault, AWS Secrets Manager or GCP Secret Manager,
+  # created once per cluster by the platform team.
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault-backend
+  # env var in the pod  ->  path/key in the secret manager
+  data:
+    - envVar: DB_PASSWORD
+      remoteKey: tms/database
+      property: password
+    - envVar: REDIS_PASSWORD
+      remoteKey: tms/redis
+      property: password
+    - envVar: BANK_WEBHOOK_HMAC_SECRET
+      remoteKey: tms/bank-partner
+      property: webhookSecret
+
+# Used only when externalSecret.enabled=false (e.g. a throwaway cluster): name of a Secret you created yourself.
+existingSecret: ""
